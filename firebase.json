@@ -1,0 +1,71 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "asia-northeast3",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "phoneNumber": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "hswarehouse",
+        "supportEmail": "byki6768@gmail.com"
+      }
+    }
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "hswarehouse",
+          "appId": "1:584793321765:android:271d1affe6e004d1feeacc",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "hswarehouse",
+          "configurations": {
+            "web": "1:584793321765:web:1abb60d10b26f7b9feeacc",
+            "android": "1:584793321765:android:271d1affe6e004d1feeacc",
+            "ios": "1:584793321765:ios:9594baeb9ffab71bfeeacc"
+          }
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "hswarehouse",
+          "appId": "1:584793321765:ios:9594baeb9ffab71bfeeacc",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "web": {
+        "default": {
+          "projectId": "hswarehouse",
+          "appId": "1:584793321765:web:1abb60d10b26f7b9feeacc",
+          "measurementId": "G-YZDQYCTQYZ"
+        }
+      }
+    }
+  }
+}

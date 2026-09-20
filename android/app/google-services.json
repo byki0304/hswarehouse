@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "584793321765",
+    "project_id": "hswarehouse",
+    "storage_bucket": "hswarehouse.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:584793321765:android:271d1affe6e004d1feeacc",
+        "android_client_info": {
+          "package_name": "com.hswarehouse.hswarehouse"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzOXCtvo530NzUjWsstUNzFaRoiBXmfTg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

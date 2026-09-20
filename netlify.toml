@@ -1,0 +1,20 @@
+[build]
+  command = """
+    if [ ! -f .env.local ]; then cp .env.example .env.local; fi
+    git clone https://github.com/flutter/flutter.git -b stable --depth 1 "$HOME/flutter"
+    export PATH="$PATH:$HOME/flutter/bin"
+    flutter config --no-analytics
+    flutter config --enable-web
+    flutter pub get
+    flutter build web --release --base-href /
+  """
+  publish = "build/web"
+
+[build.environment]
+  FLUTTER_VERSION = "3.47.3"
+  NODE_VERSION = "20"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
