@@ -29,6 +29,7 @@ class AuthService extends ChangeNotifier {
   bool _loading = true;
   String? _error;
   bool _googleInitialized = false;
+  bool _signingOut = false;
 
   AppUser? get currentUser => _currentUser;
   bool get isSignedIn => _currentUser != null;
@@ -38,15 +39,29 @@ class AuthService extends ChangeNotifier {
   User? get firebaseUser => _auth.currentUser;
 
   Future<void> _ensureGoogleInitialized() async {
-    if (_googleInitialized || kIsWeb) return;
-    final serverClientId = AppEnv.oauthClientId;
+    if (_googleInitialized) return;
+    final clientId = AppEnv.oauthClientId;
     await _googleSignIn.initialize(
-      serverClientId: serverClientId.isEmpty ? null : serverClientId,
+      clientId: clientId.isEmpty ? null : clientId,
+      serverClientId: (!kIsWeb && clientId.isNotEmpty) ? clientId : null,
     );
     _googleInitialized = true;
   }
 
   Future<void> _onAuthChanged(User? user) async {
+    // Ignore transient auth events while a deliberate sign-out is in progress.
+    if (_signingOut) {
+      if (user != null) {
+        try {
+          await _auth.signOut();
+        } catch (_) {}
+      }
+      _currentUser = null;
+      _loading = false;
+      notifyListeners();
+      return;
+    }
+
     _loading = true;
     notifyListeners();
 
@@ -80,10 +95,10 @@ class AuthService extends ChangeNotifier {
       final data = doc.data();
       if (data == null) return false;
       final role = (data['role'] as String?)?.trim().toLowerCase();
-      // role ě´ superadmin ě´ęą°ë, role íë ěě´ ëŹ¸ěë§ ěë ę˛˝ě°ë ę´ëŚŹěëĄ ě¸ě 
+      // role ÄÂÂ´ superadmin ÄÂÂ´ÄÄÂ°ĂŤÂÂ, role Ă­ÂÂĂŤÂÂ ÄÂÂÄÂÂ´ ĂŤĹšÂ¸ÄÂÂĂŤÂ§Â ÄÂÂĂŤÂÂ ÄËËÄÂÂ°ĂŤÂÂ ÄÂ´ÂĂŤĹĹšÄÂÂĂŤÄÂ ÄÂÂ¸ÄÂ Â
       return role == null || role.isEmpty || role == 'superadmin' || role == 'admin';
     } catch (_) {
-      // ęśí/ë¤í¸ěíŹ ě¤ëĽ ě ěşěëĄ í ë˛ ë ěë
+      // ÄĹÂĂ­ÂÂ/ĂŤÂÂ¤Ă­ÂÂ¸ÄÂÂĂ­ÂĹš ÄÂÂ¤ĂŤÄ˝Â ÄÂÂ ÄĹÂÄÂÂĂŤÄÂ Ă­ÂÂ ĂŤËÂ ĂŤÂÂ ÄÂÂĂŤÂÂ
       try {
         final cached = await _firestore
             .collection(AppConstants.adminsCollection)
@@ -125,20 +140,7 @@ class AuthService extends ChangeNotifier {
       if (kIsWeb) {
         final provider = GoogleAuthProvider()
           ..setCustomParameters({'prompt': 'select_account'});
-        try {
-          await _auth.signInWithPopup(provider);
-        } on FirebaseAuthException catch (e) {
-          // Popup blocked / closed → redirect flow (more reliable on some browsers)
-          if (e.code == 'popup-blocked' ||
-              e.code == 'popup-closed-by-user' ||
-              e.code == 'cancelled-popup-request') {
-            await _auth.signInWithRedirect(provider);
-            return;
-          }
-          _error = _friendlyAuthError(e);
-          notifyListeners();
-          throw Exception(_error);
-        }
+        await _auth.signInWithPopup(provider);
         return;
       }
 
@@ -167,14 +169,14 @@ class AuthService extends ChangeNotifier {
   String _friendlyAuthError(FirebaseAuthException e) {
     return switch (e.code) {
       'unauthorized-domain' =>
-        '이 도메인이 Firebase Authorized domains에 없습니다. '
-            'hswarehouse.netlify.app 등록을 확인하세요.',
+        'This domain is not in Firebase Authorized domains. '
+            'Confirm hswarehouse.netlify.app is registered.',
       'popup-blocked' =>
-        '팝업이 차단되었습니다. 브라우저에서 팝업을 허용하거나 다시 시도하세요.',
-      'popup-closed-by-user' => 'Google 로그인 창이 닫혔습니다. 다시 시도하세요.',
-      'network-request-failed' => '네트워크 오류입니다. 연결을 확인하세요.',
+        'Popup was blocked. Allow popups and try again.',
+      'popup-closed-by-user' => 'Google sign-in was closed. Please try again.',
+      'network-request-failed' => 'Network error. Check your connection.',
       'operation-not-allowed' =>
-        'Firebase Console에서 Google 로그인 제공자가 활성화되어 있는지 확인하세요.',
+        'Enable the Google sign-in provider in Firebase Console.',
       _ => e.message?.isNotEmpty == true
           ? '${e.code}: ${e.message}'
           : e.code,
@@ -250,34 +252,36 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
-    // UIëĽź ěŚě ëšíě ěíëĄ ě í
+    _signingOut = true;
     _currentUser = null;
     _error = null;
     _loading = false;
     notifyListeners();
 
     try {
-      if (!kIsWeb) {
+      try {
         await _ensureGoogleInitialized();
         await _googleSignIn.signOut();
-        try {
-          await _googleSignIn.disconnect();
-        } catch (_) {}
-      }
-    } catch (_) {}
-
-    try {
-      await _auth.signOut();
-    } catch (_) {}
-
-    // authStateChanges ę° ë¤ě ě ě ëĽź ěŹë ¤ë ěľě˘ě ěźëĄ ëšě°ę¸°
-    if (_auth.currentUser != null) {
-      try {
-        await _auth.signOut();
+        if (!kIsWeb) {
+          try {
+            await _googleSignIn.disconnect();
+          } catch (_) {}
+        }
       } catch (_) {}
+
+      await _auth.signOut();
+
+      // Ensure Firebase session is actually cleared (web can race).
+      for (var i = 0; i < 3 && _auth.currentUser != null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await _auth.signOut();
+      }
+    } finally {
+      _currentUser = null;
+      _loading = false;
+      _signingOut = false;
+      notifyListeners();
     }
-    _currentUser = null;
-    notifyListeners();
   }
 
   @override

@@ -19,8 +19,15 @@ class AppShell extends StatelessWidget {
   static const double sidebarWidth = 280;
 
   Future<void> _confirmLogout(BuildContext context, AuthService auth) async {
+    // Let the logout button gesture finish so it doesn't click-through
+    // into the dialog's confirm action (which skipped the prompt).
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    if (!context.mounted) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
+      useRootNavigator: true,
+      barrierDismissible: true,
       builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: AppTheme.surfaceElevated,
@@ -36,17 +43,18 @@ class AppShell extends StatelessWidget {
           actionsAlignment: MainAxisAlignment.center,
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('취소'),
+            ),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => Navigator.pop(dialogContext, true),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
                 icon: const Icon(Icons.logout),
                 label: const Text('로그아웃'),
               ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('취소'),
             ),
           ],
         );
