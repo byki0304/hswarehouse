@@ -80,10 +80,10 @@ class AuthService extends ChangeNotifier {
       final data = doc.data();
       if (data == null) return false;
       final role = (data['role'] as String?)?.trim().toLowerCase();
-      // role 이 superadmin 이거나, role 필드 없이 문서만 있는 경우도 관리자로 인정
+      // role ě´ superadmin ě´ęą°ë, role íë ěě´ ëŹ¸ěë§ ěë ę˛˝ě°ë ę´ëŚŹěëĄ ě¸ě 
       return role == null || role.isEmpty || role == 'superadmin' || role == 'admin';
     } catch (_) {
-      // 권한/네트워크 오류 시 캐시로 한 번 더 시도
+      // ęśí/ë¤í¸ěíŹ ě¤ëĽ ě ěşěëĄ í ë˛ ë ěë
       try {
         final cached = await _firestore
             .collection(AppConstants.adminsCollection)
@@ -120,9 +120,25 @@ class AuthService extends ChangeNotifier {
 
   Future<void> signInWithGoogle() async {
     _error = null;
+    notifyListeners();
     try {
       if (kIsWeb) {
-        await _auth.signInWithPopup(GoogleAuthProvider());
+        final provider = GoogleAuthProvider()
+          ..setCustomParameters({'prompt': 'select_account'});
+        try {
+          await _auth.signInWithPopup(provider);
+        } on FirebaseAuthException catch (e) {
+          // Popup blocked / closed → redirect flow (more reliable on some browsers)
+          if (e.code == 'popup-blocked' ||
+              e.code == 'popup-closed-by-user' ||
+              e.code == 'cancelled-popup-request') {
+            await _auth.signInWithRedirect(provider);
+            return;
+          }
+          _error = _friendlyAuthError(e);
+          notifyListeners();
+          throw Exception(_error);
+        }
         return;
       }
 
@@ -137,11 +153,32 @@ class AuthService extends ChangeNotifier {
       }
       final credential = GoogleAuthProvider.credential(idToken: idToken);
       await _auth.signInWithCredential(credential);
+    } on FirebaseAuthException catch (e) {
+      _error = _friendlyAuthError(e);
+      notifyListeners();
+      throw Exception(_error);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
       rethrow;
     }
+  }
+
+  String _friendlyAuthError(FirebaseAuthException e) {
+    return switch (e.code) {
+      'unauthorized-domain' =>
+        '이 도메인이 Firebase Authorized domains에 없습니다. '
+            'hswarehouse.netlify.app 등록을 확인하세요.',
+      'popup-blocked' =>
+        '팝업이 차단되었습니다. 브라우저에서 팝업을 허용하거나 다시 시도하세요.',
+      'popup-closed-by-user' => 'Google 로그인 창이 닫혔습니다. 다시 시도하세요.',
+      'network-request-failed' => '네트워크 오류입니다. 연결을 확인하세요.',
+      'operation-not-allowed' =>
+        'Firebase Console에서 Google 로그인 제공자가 활성화되어 있는지 확인하세요.',
+      _ => e.message?.isNotEmpty == true
+          ? '${e.code}: ${e.message}'
+          : e.code,
+    };
   }
 
   Future<void> signInWithEmail({
@@ -213,7 +250,7 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
-    // UI를 즉시 비회원 상태로 전환
+    // UIëĽź ěŚě ëšíě ěíëĄ ě í
     _currentUser = null;
     _error = null;
     _loading = false;
@@ -233,7 +270,7 @@ class AuthService extends ChangeNotifier {
       await _auth.signOut();
     } catch (_) {}
 
-    // authStateChanges 가 다시 유저를 올려도 최종적으로 비우기
+    // authStateChanges ę° ë¤ě ě ě ëĽź ěŹë ¤ë ěľě˘ě ěźëĄ ëšě°ę¸°
     if (_auth.currentUser != null) {
       try {
         await _auth.signOut();

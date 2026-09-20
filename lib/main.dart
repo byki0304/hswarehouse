@@ -1,4 +1,5 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +18,10 @@ Future<void> main() async {
   );
 
   if (kIsWeb) {
+    // Complete Google redirect sign-in if returning from identity provider.
+    try {
+      await FirebaseAuth.instance.getRedirectResult();
+    } catch (_) {}
     FirebaseAnalytics.instance;
   }
 
